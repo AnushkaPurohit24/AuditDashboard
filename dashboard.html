@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Store Audit Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --red:#C8102E;--red-light:#fdf0f2;--red-mid:#f8c8d0;
+  --navy:#1a2340;--navy-mid:#2d3a5c;--navy-light:#eef0f6;
+  --gold:#c9a84c;--gold-light:#fdf8ee;
+  --green:#16a34a;--green-bg:#dcfce7;--green-light:#f0fdf4;
+  --amber:#d97706;--amber-bg:#fef3c7;--amber-light:#fffbeb;
+  --teal:#0891b2;--teal-bg:#cffafe;
+  --text:#1e293b;--muted:#64748b;--border:#e2e8f0;
+  --bg:#f4f6fb;--surface:#fff;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 2px 8px rgba(0,0,0,.07);--shadow-md:0 4px 16px rgba(0,0,0,.10);
+}
+html{scroll-behavior:smooth}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+
+/* ── NAV ── */
+nav{background:var(--navy);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.nav-brand{display:flex;align-items:center;gap:10px}
+.nav-logo{width:34px;height:34px;border-radius:8px;background:var(--red);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;color:#fff}
+.nav-title{color:#fff;font-weight:700;font-size:15px}
+.nav-sub{color:rgba(255,255,255,.5);font-size:11px;margin-top:1px}
+.nav-right{display:flex;align-items:center;gap:10px}
+#last-updated{font-size:11px;color:rgba(255,255,255,.5)}
+.nav-btn{height:30px;padding:0 12px;border-radius:var(--radius-sm);border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.8);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;font-family:inherit}
+.nav-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.4);color:#fff}
+
+/* ── WRAPPER ── */
+#wrapper{max-width:1400px;margin:0 auto;padding:20px 22px 56px;display:flex;flex-direction:column;gap:18px}
+
+/* ── EMPTY STATE ── */
+#empty-state{text-align:center;padding:80px 20px}
+#empty-state .es-icon{font-size:48px;margin-bottom:16px;opacity:.5}
+#empty-state h2{font-size:20px;font-weight:700;color:var(--navy);margin-bottom:8px}
+#empty-state p{color:var(--muted);font-size:14px;max-width:400px;margin:0 auto 20px}
+.btn-primary{background:var(--red);color:#fff;border:none;padding:10px 24px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s;font-family:inherit;text-decoration:none;display:inline-block}
+.btn-primary:hover{opacity:.88}
+
+/* ── SESSION CHIPS ── */
+#session-bar{background:var(--navy-light);border:1px solid #c7d0e8;border-radius:var(--radius);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.session-bar-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--navy-mid);white-space:nowrap}
+.session-chips{display:flex;gap:7px;flex-wrap:wrap;flex:1}
+.session-chip{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid transparent;cursor:pointer;transition:all .15s}
+.session-chip.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.session-chip.inactive{background:var(--surface);color:var(--navy-mid);border-color:var(--border)}
+.session-chip.inactive:hover{border-color:var(--navy);color:var(--navy)}
+.session-chip.latest{border-color:var(--red)}
+.session-chip.active.latest{background:var(--red)}
+
+/* ── FILTER BAR ── */
+#filter-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;box-shadow:var(--shadow)}
+.filter-group{display:flex;flex-direction:column;gap:3px}
+.filter-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+select.filter-sel{height:32px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:inherit;font-size:13px;min-width:140px;cursor:pointer}
+select.filter-sel:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px rgba(200,16,46,.1)}
+.filter-spacer{flex:1}
+.filter-meta{display:flex;align-items:center;gap:8px}
+#filter-count{font-size:13px;font-weight:700;color:var(--navy)}
+#clear-btn{height:32px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s}
+#clear-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-light)}
+
+/* ── KPI CARDS ── */
+#kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-card.kc-red::before{background:var(--red)}
+.kpi-card.kc-navy::before{background:var(--navy)}
+.kpi-card.kc-green::before{background:var(--green)}
+.kpi-card.kc-amber::before{background:var(--amber)}
+.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
+.kpi-value{font-size:32px;font-weight:800;color:var(--text);line-height:1;margin-bottom:4px}
+.kpi-value.red{color:var(--red)}
+.kpi-sub{font-size:11px;color:var(--muted)}
+.trend{font-size:11px;font-weight:600;margin-bottom:2px}
+.trend.up{color:var(--green)}.trend.down{color:var(--red)}.trend.flat{color:var(--muted)}
+
+/* ── PANELS ── */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.panel-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:14px;font-weight:700;color:var(--text)}
+.panel-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.panel-body{padding:18px 20px}
+
+/* ── SECTION SCORES ── */
+#sec-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+#sec-chart-wrap{position:relative;min-height:200px}
+.sec-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.sec-tbl th{padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--border)}
+.sec-tbl td{padding:9px 10px;border-bottom:1px solid var(--border)}
+.sec-tbl tr:last-child td{border-bottom:none}
+.score-pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.sp-good{background:var(--green-bg);color:var(--green)}.sp-mid{background:var(--amber-bg);color:var(--amber)}.sp-bad{background:var(--red-light);color:var(--red)}.sp-none{background:var(--bg);color:var(--muted)}
+
+/* ── STORE TABLE ── */
+.tbl-scroll{overflow-x:auto}
+table.store-tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:800px}
+table.store-tbl th{padding:10px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap}
+table.store-tbl th:hover{color:var(--navy)}
+table.store-tbl th .si{margin-left:4px;opacity:.4;font-size:9px}
+table.store-tbl th.asc .si::after{content:'▲';opacity:1}
+table.store-tbl th.desc .si::after{content:'▼';opacity:1}
+table.store-tbl th .si::after{content:'⇕'}
+table.store-tbl td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+table.store-tbl tbody tr{cursor:pointer;transition:background .1s}
+table.store-tbl tbody tr:hover{background:var(--navy-light)}
+table.store-tbl tbody tr.expanded{background:var(--navy-light)}
+.sev-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.sb-critical{background:var(--red-light);color:var(--red)}
+.sb-atrisk{background:var(--amber-bg);color:var(--amber)}
+.sb-good{background:var(--teal-bg);color:var(--teal)}
+.sb-excellent{background:var(--green-bg);color:var(--green)}
+
+/* EXPAND ROW */
+.expand-row td{padding:0}
+.expand-inner{display:none;padding:14px 18px;background:#f0f5ff;border-top:1px solid var(--navy-light);border-bottom:1px solid var(--border)}
+.expand-row.open .expand-inner{display:block}
+.expand-sections{display:flex;flex-wrap:wrap;gap:14px}
+.expand-sec{flex:1;min-width:180px}
+.expand-sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);margin-bottom:6px}
+.expand-q{display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border);font-size:11px}
+.expand-q:last-child{border-bottom:none}
+.eq-val{font-weight:700}
+.eq-yes{color:var(--green)}.eq-no{color:var(--red)}.eq-par{color:var(--amber)}.eq-na{color:var(--muted)}
+
+/* ── TREND ── */
+#trend-wrap{height:260px;position:relative}
+
+/* ── ALERTS ── */
+#alerts-list{display:flex;flex-direction:column;gap:10px}
+.alert-card{border-radius:var(--radius-sm);padding:14px 16px;display:flex;align-items:flex-start;gap:14px;border-left:4px solid}
+.alert-card.critical{background:var(--red-light);border-color:var(--red)}
+.alert-card.atrisk{background:var(--amber-bg);border-color:var(--amber)}
+.alert-score{font-size:24px;font-weight:800;flex-shrink:0;align-self:center}
+.critical .alert-score{color:var(--red)}.atrisk .alert-score{color:var(--amber)}
+.alert-name{font-weight:700;font-size:14px}
+.alert-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.alert-secs{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.alert-sec-pill{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(0,0,0,.07)}
+.no-alert{text-align:center;padding:24px;color:var(--muted);font-size:13px}
+
+/* ── EMPTY ── */
+.empty-state{padding:32px;text-align:center;color:var(--muted);font-size:13px}
+.empty-state .ei{font-size:28px;margin-bottom:8px}
+
+/* ── PRINT ── */
+@media print{nav,#filter-bar,#session-bar,.nav-btn{display:none!important}body{background:#fff}#wrapper{padding:0}.panel{box-shadow:none}}
+
+/* ── RESPONSIVE ── */
+@media(max-width:960px){#kpi-row{grid-template-columns:repeat(2,1fr)}#sec-grid{grid-template-columns:1fr}}
+@media(max-width:560px){#kpi-row{grid-template-columns:1fr}#wrapper{padding:12px 12px 40px}.nav-right .nav-btn span{display:none}#last-updated{display:none}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">H</div>
+    <div>
+      <div class="nav-title">Store Audit Dashboard</div>
+      <div class="nav-sub">Retail Operations Intelligence</div>
+    </div>
+  </div>
+  <div class="nav-right">
+    <span id="last-updated"></span>
+    <button class="nav-btn" onclick="exportCSV()">⬇ <span>Export CSV</span></button>
+    <button class="nav-btn" onclick="window.print()">🖨 <span>Print</span></button>
+    <a href="admin.html" class="nav-btn" style="text-decoration:none">⚙ <span>Admin</span></a>
+  </div>
+</nav>
+
+<div id="wrapper">
+
+  <!-- EMPTY STATE (no sessions) -->
+  <div id="empty-state" style="display:none">
+    <div class="es-icon">📋</div>
+    <h2>No audit data yet</h2>
+    <p>Upload your MS Form export in the Admin panel to start seeing your store scores here.</p>
+    <a href="admin.html" class="btn-primary">→ Go to Admin Upload</a>
+  </div>
+
+  <!-- SESSION BAR -->
+  <div id="session-bar" style="display:none">
+    <div class="session-bar-label">Audit sessions</div>
+    <div class="session-chips" id="session-chips"></div>
+    <div style="font-size:11px;color:var(--navy-mid)">Last 5 only</div>
+  </div>
+
+  <!-- FILTER BAR -->
+  <div id="filter-bar" style="display:none">
+    <div class="filter-group">
+      <div class="filter-label">ROM</div>
+      <select class="filter-sel" id="f-rom" onchange="applyFilters()"><option value="">All ROMs</option></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Store Director (SD)</div>
+      <select class="filter-sel" id="f-sd" onchange="applyFilters()"><option value="">All SDs</option></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Store</div>
+      <select class="filter-sel" id="f-store" onchange="applyFilters()"><option value="">All Stores</option></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">City</div>
+      <select class="filter-sel" id="f-city" onchange="applyFilters()"><option value="">All Cities</option></select>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Region / Zone</div>
+      <select class="filter-sel" id="f-region" onchange="applyFilters()"><option value="">All Regions</option></select>
+    </div>
+    <div class="filter-spacer"></div>
+    <div class="filter-meta">
+      <span id="filter-count"></span>
+      <button id="clear-btn" onclick="clearFilters()">✕ Clear filters</button>
+    </div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div id="kpi-row" style="display:none">
+    <div class="kpi-card kc-navy">
+      <div class="kpi-label">Average Score</div>
+      <div class="kpi-value" id="k-avg">—</div>
+      <div class="trend" id="k-avg-trend"></div>
+      <div class="kpi-sub">Across filtered audits</div>
+    </div>
+    <div class="kpi-card kc-green">
+      <div class="kpi-label">Audits Passing</div>
+      <div class="kpi-value" id="k-pass">—</div>
+      <div class="trend" id="k-pass-trend"></div>
+      <div class="kpi-sub">Score ≥ threshold</div>
+    </div>
+    <div class="kpi-card kc-red">
+      <div class="kpi-label">Critical Stores</div>
+      <div class="kpi-value red" id="k-crit">—</div>
+      <div class="kpi-sub">Immediate action needed</div>
+    </div>
+    <div class="kpi-card kc-amber">
+      <div class="kpi-label">Total Audits</div>
+      <div class="kpi-value" id="k-total">—</div>
+      <div class="kpi-sub" id="k-sessions-sub">In selected sessions</div>
+    </div>
+  </div>
+
+  <!-- SECTION SCORES -->
+  <div class="panel" id="sec-panel" style="display:none">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">Section Scores</div>
+        <div class="panel-sub">Average per category — filtered data</div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div id="sec-grid">
+        <div id="sec-chart-wrap"><canvas id="sec-chart"></canvas></div>
+        <div><table class="sec-tbl" id="sec-tbl">
+          <thead><tr><th>Section</th><th>Avg</th><th>Min</th><th>Max</th><th>Audits</th></tr></thead>
+          <tbody id="sec-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TREND CHART -->
+  <div class="panel" id="trend-panel" style="display:none">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">Score Trend Over Time</div>
+        <div class="panel-sub">Overall audit score across sessions</div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div id="trend-wrap"><canvas id="trend-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- STORE SCORECARD TABLE -->
+  <div class="panel" id="store-panel" style="display:none">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">Store Scorecard</div>
+        <div class="panel-sub">Most recent audit per store — click a row for full detail</div>
+      </div>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <div class="tbl-scroll">
+        <table class="store-tbl" id="store-tbl">
+          <thead id="store-thead"></thead>
+          <tbody id="store-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CRITICAL ALERTS -->
+  <div class="panel" id="alerts-panel" style="display:none">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">⚠ Critical Alerts</div>
+        <div class="panel-sub">Stores needing immediate attention</div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div id="alerts-list"></div>
+    </div>
+  </div>
+
+</div><!-- /wrapper -->
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+// SECTIONS DEFINITION
+// ═══════════════════════════════════════════════════════════
+const SECTIONS = [
+  { key:'vm',         label:'Visual Merchandising', weight:0.20, questions:['vm_window','vm_planogram','vm_price_tags','vm_cleanliness','vm_signage'] },
+  { key:'inventory',  label:'Inventory & Stock',    weight:0.20, questions:['inv_stock','inv_back_room','inv_cycle_count','inv_expiry','inv_shrinkage'] },
+  { key:'customer',   label:'Customer Experience',  weight:0.25, questions:['cx_greeting','cx_product_know','cx_complaints','cx_checkout','cx_restroom'] },
+  { key:'people',     label:'People & Training',    weight:0.20, questions:['hr_attendance','hr_uniform','hr_training','hr_schedule','hr_break'] },
+  { key:'compliance', label:'Compliance & Safety',  weight:0.15, questions:['comp_fire','comp_first_aid','comp_cctv','comp_health','comp_lp'] },
+];
+const ANSWER_SCORES = { Yes:100,YES:100,yes:100,No:0,NO:0,no:0,Partial:50,PARTIAL:50,partial:50,Partially:50 };
+const ANSWER_NULL = new Set(['N/A','NA','n/a','','null','undefined']);
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let sessions = [];        // all loaded sessions (max 5)
+let activeSessions = {};  // id -> true/false
+let allRows = [];         // all rows across active sessions (with scores)
+let filteredRows = [];
+let sortState = { col:'audit_date', dir:'desc' };
+let sectionChart = null;
+let trendChart = null;
+let thresholds = { critical:50, atRisk:65, good:85 };
+
+// ═══════════════════════════════════════════════════════════
+// SCORING
+// ═══════════════════════════════════════════════════════════
+function scoreQ(answer) {
+  if (!answer || ANSWER_NULL.has(answer.trim())) return null;
+  const v = ANSWER_SCORES[answer.trim()];
+  return (v === undefined) ? null : v;
+}
+function scoreSection(row, sec) {
+  const scores = sec.questions.map(q => scoreQ(row[q])).filter(s => s !== null);
+  return scores.length ? scores.reduce((a,b) => a+b, 0) / scores.length : null;
+}
+function scoreOverall(row) {
+  let num=0, den=0;
+  SECTIONS.forEach(sec => {
+    const s = scoreSection(row, sec);
+    if (s !== null) { num += s*sec.weight; den += sec.weight; }
+  });
+  return den ? num/den : null;
+}
+function severity(score) {
+  if (score === null) return 'Unknown';
+  if (score < thresholds.critical) return 'Critical';
+  if (score < thresholds.atRisk) return 'At Risk';
+  if (score < thresholds.good) return 'Good';
+  return 'Excellent';
+}
+function scoreColor(s) {
+  if (s === null) return '#94a3b8';
+  if (s >= thresholds.good) return '#16a34a';
+  if (s >= thresholds.atRisk) return '#d97706';
+  return '#dc2626';
+}
+function scoreClass(s) {
+  if (s === null) return 'sp-none';
+  if (s >= thresholds.good) return 'sp-good';
+  if (s >= thresholds.atRisk) return 'sp-mid';
+  return 'sp-bad';
+}
+function sevClass(sev) {
+  return {Critical:'sb-critical','At Risk':'sb-atrisk',Good:'sb-good',Excellent:'sb-excellent'}[sev]||'';
+}
+
+function parseDate(str) {
+  if (!str) return null;
+  let d = new Date(str);
+  if (!isNaN(d)) return d;
+  const p = str.split('/');
+  if (p.length === 3) d = new Date(`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`);
+  return isNaN(d) ? null : d;
+}
+
+function enrichRow(raw, sessionId, sessionLabel) {
+  const row = { ...raw, __sessionId: sessionId, __sessionLabel: sessionLabel };
+  SECTIONS.forEach(sec => { row['__sec_' + sec.key] = scoreSection(raw, sec); });
+  row.__overall = scoreOverall(raw);
+  row.__severity = severity(row.__overall);
+  row.__date = parseDate(raw.audit_date);
+  return row;
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOAD DATA FROM LOCALSTORAGE
+// ═══════════════════════════════════════════════════════════
+function loadSessions() {
+  try { sessions = JSON.parse(localStorage.getItem('audit_sessions') || '[]'); } catch(e) { sessions = []; }
+
+  // Use thresholds from most recent session
+  if (sessions.length && sessions[sessions.length-1].thresholds) {
+    thresholds = sessions[sessions.length-1].thresholds;
+  }
+
+  if (!sessions.length) {
+    document.getElementById('empty-state').style.display = '';
+    return;
+  }
+
+  // Default: activate all sessions
+  sessions.forEach(s => { activeSessions[s.id] = true; });
+
+  buildSessionBar();
+  buildUI();
+  rebuildRows();
+  buildFilterDropdowns();
+  applyFilters();
+  document.getElementById('last-updated').textContent = 'Loaded ' + new Date().toLocaleTimeString();
+}
+
+function rebuildRows() {
+  allRows = [];
+  sessions.forEach(s => {
+    if (!activeSessions[s.id]) return;
+    (s.rows || []).forEach(raw => {
+      allRows.push(enrichRow(raw, s.id, s.label));
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// SESSION BAR
+// ═══════════════════════════════════════════════════════════
+function buildSessionBar() {
+  const bar = document.getElementById('session-bar');
+  const chips = document.getElementById('session-chips');
+  bar.style.display = '';
+
+  // Show newest first
+  const sorted = [...sessions].reverse();
+  chips.innerHTML = sorted.map((s, i) => `
+    <div class="session-chip ${activeSessions[s.id]?'active':'inactive'} ${i===0?'latest':''}"
+         id="chip-${s.id}" onclick="toggleSession('${s.id}')">
+      ${s.label} <span style="opacity:.6;font-size:10px;margin-left:4px">(${s.rowCount})</span>
+    </div>`).join('');
+}
+
+function toggleSession(id) {
+  activeSessions[id] = !activeSessions[id];
+  const chip = document.getElementById('chip-' + id);
+  chip.classList.toggle('active', activeSessions[id]);
+  chip.classList.toggle('inactive', !activeSessions[id]);
+  rebuildRows();
+  buildFilterDropdowns();
+  applyFilters();
+}
+
+// ═══════════════════════════════════════════════════════════
+// SHOW UI ELEMENTS
+// ═══════════════════════════════════════════════════════════
+function buildUI() {
+  ['filter-bar','kpi-row','sec-panel','trend-panel','store-panel','alerts-panel']
+    .forEach(id => { document.getElementById(id).style.display = ''; });
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTER DROPDOWNS
+// ═══════════════════════════════════════════════════════════
+function buildFilterDropdowns() {
+  const populate = (id, key, label) => {
+    const sel = document.getElementById(id);
+    const cur = sel.value;
+    const vals = [...new Set(allRows.map(r => r[key]).filter(Boolean))].sort();
+    sel.innerHTML = `<option value="">All ${label}s</option>` +
+      vals.map(v => `<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
+  };
+  populate('f-rom', 'regional_manager', 'ROM');
+  populate('f-sd', 'sd_name', 'SD');
+  populate('f-store', 'store_name', 'Store');
+  populate('f-city', 'city', 'City');
+  populate('f-region', 'region', 'Region');
+}
+
+function clearFilters() {
+  ['f-rom','f-sd','f-store','f-city','f-region'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  applyFilters();
+}
+
+// ═══════════════════════════════════════════════════════════
+// APPLY FILTERS — Last 5 audits per store within filtered set
+// ═══════════════════════════════════════════════════════════
+function applyFilters() {
+  const rom    = document.getElementById('f-rom').value;
+  const sd     = document.getElementById('f-sd').value;
+  const store  = document.getElementById('f-store').value;
+  const city   = document.getElementById('f-city').value;
+  const region = document.getElementById('f-region').value;
+
+  let base = allRows.filter(r => {
+    if (rom    && r.regional_manager !== rom)    return false;
+    if (sd     && r.sd_name !== sd)              return false;
+    if (store  && r.store_name !== store)        return false;
+    if (city   && r.city !== city)               return false;
+    if (region && r.region !== region)           return false;
+    return true;
+  });
+
+  // ── LAST 5 AUDITS PER STORE ──
+  // Group by store, sort by date desc, take last 5
+  const byStore = {};
+  base.forEach(r => {
+    const k = r.store_name || '__unknown__';
+    if (!byStore[k]) byStore[k] = [];
+    byStore[k].push(r);
+  });
+  filteredRows = [];
+  Object.values(byStore).forEach(rows => {
+    const sorted = rows.sort((a,b) => {
+      if (!a.__date && !b.__date) return 0;
+      if (!a.__date) return 1;
+      if (!b.__date) return -1;
+      return b.__date - a.__date;
+    });
+    filteredRows.push(...sorted.slice(0, 5));
+  });
+
+  const active = Object.values(activeSessions).filter(Boolean).length;
+  document.getElementById('filter-count').textContent =
+    `Showing ${filteredRows.length} audits (${Object.keys(byStore).length} stores)`;
+
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════════════════════════
+function renderAll() {
+  renderKPIs();
+  renderSectionScores();
+  renderTrend();
+  renderStoreTable();
+  renderAlerts();
+}
+
+// ═══════════════════════════════════════════════════════════
+// KPI CARDS
+// ═══════════════════════════════════════════════════════════
+function renderKPIs() {
+  const d = filteredRows.filter(r => r.__overall !== null);
+  const avg = d.length ? d.reduce((a,r) => a+r.__overall, 0)/d.length : null;
+  set('k-avg', avg!==null ? avg.toFixed(1)+'%' : '—');
+
+  const pass = d.filter(r => r.__overall >= thresholds.good);
+  const pct = d.length ? (pass.length/d.length*100) : null;
+  set('k-pass', pct!==null ? pct.toFixed(0)+'%' : '—');
+
+  const recent = mostRecentPerStore(filteredRows);
+  const crit = recent.filter(r => r.__severity === 'Critical');
+  set('k-crit', crit.length);
+  set('k-total', filteredRows.length);
+
+  // Trend vs previous half
+  const dated = d.filter(r=>r.__date).sort((a,b)=>a.__date-b.__date);
+  if (dated.length >= 4) {
+    const mid = dated[Math.floor(dated.length/2)];
+    const prev = dated.filter(r=>r.__date < mid.__date);
+    const curr = dated.filter(r=>r.__date >= mid.__date);
+    if (prev.length && curr.length) {
+      const prevAvg = prev.reduce((a,r)=>a+r.__overall,0)/prev.length;
+      const diff = avg - prevAvg;
+      const cls = diff>0?'up':diff<0?'down':'flat';
+      const arr = diff>0?'▲':diff<0?'▼':'—';
+      setHTML('k-avg-trend', `<span class="trend ${cls}">${arr} ${Math.abs(diff).toFixed(1)}%</span>`);
+      const prevPass = prev.filter(r=>r.__overall>=thresholds.good).length/prev.length*100;
+      const currPass = curr.filter(r=>r.__overall>=thresholds.good).length/curr.length*100;
+      const pd = currPass - prevPass;
+      const pc = pd>0?'up':pd<0?'down':'flat';
+      const pa = pd>0?'▲':pd<0?'▼':'—';
+      setHTML('k-pass-trend', `<span class="trend ${pc}">${pa} ${Math.abs(pd).toFixed(1)}%</span>`);
+    }
+  }
+}
+
+function mostRecentPerStore(rows) {
+  const map = {};
+  rows.forEach(r => {
+    const k = r.store_name;
+    if (!k) return;
+    if (!map[k] || (r.__date && map[k].__date && r.__date > map[k].__date)) map[k] = r;
+  });
+  return Object.values(map);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SECTION SCORES
+// ═══════════════════════════════════════════════════════════
+function renderSectionScores() {
+  const tbody = document.getElementById('sec-tbody');
+  tbody.innerHTML = '';
+  const labels=[], avgs=[], colors=[], mins=[], maxs=[], counts=[];
+
+  SECTIONS.forEach(sec => {
+    const scores = filteredRows.map(r=>r['__sec_'+sec.key]).filter(s=>s!==null);
+    const avg = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : null;
+    const min = scores.length ? Math.min(...scores) : null;
+    const max = scores.length ? Math.max(...scores) : null;
+    labels.push(sec.label);
+    avgs.push(avg!==null ? +avg.toFixed(1) : 0);
+    colors.push(scoreColor(avg));
+    mins.push(min); maxs.push(max); counts.push(scores.length);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${sec.label}</td>
+      <td><span class="score-pill ${scoreClass(avg)}">${avg!==null?avg.toFixed(1)+'%':'—'}</span></td>
+      <td>${min!==null?min.toFixed(1)+'%':'—'}</td>
+      <td>${max!==null?max.toFixed(1)+'%':'—'}</td>
+      <td>${scores.length}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const ctx = document.getElementById('sec-chart').getContext('2d');
+  if (sectionChart) sectionChart.destroy();
+  sectionChart = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ data:avgs, backgroundColor:colors, borderRadius:6, borderSkipped:false }] },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          label(c){const i=c.dataIndex;return ` Avg: ${avgs[i]}% | Min: ${mins[i]!==null?mins[i].toFixed(1)+'%':'—'} Max: ${maxs[i]!==null?maxs[i].toFixed(1)+'%':'—'}`},
+          title(i){return i[0].label}
+        }}
+      },
+      scales:{
+        x:{min:0,max:100,grid:{color:'#f1f5f9'},ticks:{callback:v=>v+'%',font:{size:11}}},
+        y:{ticks:{font:{size:12}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// TREND CHART
+// ═══════════════════════════════════════════════════════════
+function renderTrend() {
+  const ctx = document.getElementById('trend-chart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+
+  // Group by session label (chronological)
+  const sessionOrder = sessions.map(s=>s.id);
+  const bySession = {};
+  filteredRows.forEach(r => {
+    const sid = r.__sessionId;
+    if (!bySession[sid]) bySession[sid] = [];
+    bySession[sid].push(r.__overall);
+  });
+
+  const labels = sessions.filter(s=>bySession[s.id]).map(s=>s.label);
+  const data = sessions.filter(s=>bySession[s.id]).map(s => {
+    const scores = bySession[s.id].filter(x=>x!==null);
+    return scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : null;
+  });
+
+  const PALETTE = ['#C8102E','#1a2340','#16a34a','#d97706','#0891b2','#7c3aed'];
+
+  // If a specific store is selected, show per-store lines
+  const storeFilter = document.getElementById('f-store').value;
+  let datasets;
+  if (storeFilter) {
+    datasets = [{
+      label: storeFilter,
+      data,
+      borderColor: PALETTE[0],
+      backgroundColor: PALETTE[0]+'20',
+      pointBackgroundColor: PALETTE[0],
+      tension:.35, fill:true, pointRadius:5, pointHoverRadius:7
+    }];
+  } else {
+    datasets = [{
+      label: 'Avg Score',
+      data,
+      borderColor: '#1a2340',
+      backgroundColor: '#1a234020',
+      pointBackgroundColor: data.map(v=>v!==null ? scoreColor(v) : '#94a3b8'),
+      tension:.35, fill:true, pointRadius:5, pointHoverRadius:7
+    }];
+  }
+
+  trendChart = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label(c){return c.parsed.y!==null?`${c.parsed.y.toFixed(1)}%`:'—'}}}
+      },
+      scales:{
+        y:{min:0,max:100,grid:{color:'#f1f5f9'},ticks:{callback:v=>v+'%',font:{size:11}}},
+        x:{ticks:{font:{size:11}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// STORE TABLE
+// ═══════════════════════════════════════════════════════════
+function renderStoreTable() {
+  const thead = document.getElementById('store-thead');
+  const tbody = document.getElementById('store-tbody');
+
+  const cols = [
+    { key:'store_name',        label:'Store' },
+    { key:'city',              label:'City' },
+    { key:'regional_manager',  label:'ROM' },
+    { key:'sd_name',           label:'SD' },
+    { key:'audit_date',        label:'Date' },
+    ...SECTIONS.map(s => ({ key:'__sec_'+s.key, label:s.label.split(' ')[0] })),
+    { key:'__overall',         label:'Overall' },
+    { key:'__severity',        label:'Severity' },
+  ];
+
+  // Header
+  thead.innerHTML = `<tr>${cols.map(c => `
+    <th class="${sortState.col===c.key?sortState.dir:''}" onclick="sortBy('${c.key}')">
+      ${c.label}<span class="si"></span>
+    </th>`).join('')}</tr>`;
+
+  // Get most recent per store, sort
+  const rows = mostRecentPerStore(filteredRows);
+  rows.sort((a,b) => {
+    const col = sortState.col;
+    let av = a[col], bv = b[col];
+    if (col === 'audit_date' || col === '__date') { av = a.__date; bv = b.__date; }
+    if (av === null && bv === null) return 0;
+    if (av === null) return sortState.dir==='asc'?-1:1;
+    if (bv === null) return sortState.dir==='asc'?1:-1;
+    return (av < bv ? -1 : av > bv ? 1 : 0) * (sortState.dir==='asc'?1:-1);
+  });
+
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="99"><div class="empty-state"><div class="ei">🔍</div>No audit data matches your filters.</div></td></tr>';
+    return;
+  }
+
+  rows.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = cols.map(c => {
+      if (c.key === '__severity') return `<td><span class="sev-badge ${sevClass(row.__severity)}">${row.__severity}</span></td>`;
+      if (c.key === '__overall') return `<td><span class="score-pill ${scoreClass(row.__overall)}">${row.__overall!==null?row.__overall.toFixed(1)+'%':'—'}</span></td>`;
+      if (c.key.startsWith('__sec_')) {
+        const v = row[c.key];
+        return `<td><span class="score-pill ${scoreClass(v)}">${v!==null?v.toFixed(0)+'%':'—'}</span></td>`;
+      }
+      if (c.key === 'audit_date') return `<td>${row.audit_date ? new Date(row.audit_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : row.audit_date || '—'}</td>`;
+      return `<td>${row[c.key] || '—'}</td>`;
+    }).join('');
+
+    // Expand row
+    const expandRow = document.createElement('tr');
+    expandRow.className = 'expand-row';
+    const expandTd = document.createElement('td');
+    expandTd.colSpan = cols.length;
+    expandTd.innerHTML = `<div class="expand-inner">
+      <div class="expand-sections">${SECTIONS.map(sec => `
+        <div class="expand-sec">
+          <div class="expand-sec-title">${sec.label}</div>
+          ${sec.questions.map(q => {
+            const ans = row[q] || '—';
+            const cls = ans==='Yes'?'eq-yes':ans==='No'?'eq-no':ans==='Partial'?'eq-par':'eq-na';
+            return `<div class="expand-q"><span class="eq-label">${q.replace(/_/g,' ')}</span><span class="eq-val ${cls}">${ans}</span></div>`;
+          }).join('')}
+        </div>`).join('')}
+      </div>
+    </div>`;
+    expandRow.appendChild(expandTd);
+
+    tr.addEventListener('click', () => {
+      const wasOpen = expandRow.classList.contains('open');
+      // Close all others
+      [...tbody.querySelectorAll('.expand-row.open')].forEach(r => { r.classList.remove('open'); r.previousSibling?.classList.remove('expanded'); });
+      if (!wasOpen) {
+        expandRow.classList.add('open');
+        tr.classList.add('expanded');
+      }
+    });
+
+    tbody.appendChild(tr);
+    tbody.appendChild(expandRow);
+  });
+}
+
+function sortBy(col) {
+  if (sortState.col === col) sortState.dir = sortState.dir==='asc'?'desc':'asc';
+  else { sortState.col = col; sortState.dir = 'asc'; }
+  renderStoreTable();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════
+function renderAlerts() {
+  const list = document.getElementById('alerts-list');
+  const critical = mostRecentPerStore(filteredRows)
+    .filter(r => r.__severity === 'Critical' || r.__severity === 'At Risk')
+    .sort((a,b) => (a.__overall??100) - (b.__overall??100));
+
+  if (!critical.length) {
+    list.innerHTML = '<div class="no-alert">✅ No critical or at-risk stores in current selection.</div>';
+    return;
+  }
+
+  list.innerHTML = critical.map(r => {
+    const cls = r.__severity==='Critical'?'critical':'atrisk';
+    // Lowest 3 sections
+    const secScores = SECTIONS.map(s=>({label:s.label, score:r['__sec_'+s.key]}))
+      .filter(s=>s.score!==null).sort((a,b)=>a.score-b.score).slice(0,3);
+    return `<div class="alert-card ${cls}">
+      <div style="flex:1">
+        <div class="alert-name">${r.store_name || '—'}</div>
+        <div class="alert-meta">${[r.city, r.region, r.regional_manager?'ROM: '+r.regional_manager:''].filter(Boolean).join(' · ')}</div>
+        <div class="alert-secs">${secScores.map(s=>`<div class="alert-sec-pill">${s.label}: ${s.score.toFixed(0)}%</div>`).join('')}</div>
+      </div>
+      <div class="alert-score">${r.__overall!==null?r.__overall.toFixed(0)+'%':'—'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT CSV
+// ═══════════════════════════════════════════════════════════
+function exportCSV() {
+  const cols = ['store_name','city','region','regional_manager','sd_name','audit_date','__overall','__severity',
+    ...SECTIONS.map(s=>'__sec_'+s.key)];
+  const hdrs = ['Store','City','Region','ROM','SD','Audit Date','Overall %','Severity',
+    ...SECTIONS.map(s=>s.label)];
+  const esc = v => `"${(v??'').toString().replace(/"/g,'""')}"`;
+  const csv = [hdrs.map(esc).join(','), ...filteredRows.map(r =>
+    cols.map(c => esc(typeof r[c]==='number'?r[c].toFixed(1):r[c])).join(',')
+  )].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'audit-export-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════
+function set(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
+function setHTML(id, val) { const el=document.getElementById(id); if(el) el.innerHTML=val; }
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+loadSessions();
+</script>
+</body>
+</html>
